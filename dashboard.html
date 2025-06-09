@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Speed Dashboard</title>
+<style>
+body{font-family:Arial;margin:0;padding:0;background:#222;color:#eee}
+#content{padding:20px}
+label{display:block;margin-top:10px}
+input{width:100%}
+#graph{width:100%;height:200px;background:#444;margin-top:20px}
+</style>
+</head>
+<body>
+<div id="content">
+<h1>Speed Manipulator</h1>
+<div>Real Speed: <span id="real">0</span> km/h</div>
+<div>Fake Speed: <span id="fake">0</span> km/h</div>
+<label>Scale<input id="scale" type="number" step="0.1"></label>
+<label>Offset<input id="offset" type="number" step="0.1"></label>
+<button onclick="save()">Save</button>
+<canvas id="graph"></canvas>
+</div>
+<script>
+let ws;
+let realData=[];let fakeData=[];
+function connect(){
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage=e=>{
+    let obj=JSON.parse(e.data);
+    document.getElementById('real').textContent=obj.real.toFixed(1);
+    document.getElementById('fake').textContent=obj.fake.toFixed(1);
+  };
+}
+function save(){
+  let cfg={scale:parseFloat(scale.value),offset:parseFloat(offset.value)};
+  fetch('/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+}
+connect();
+</script>
+</body>
+</html>
+
