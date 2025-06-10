@@ -12,6 +12,10 @@
 #define STATUS_LED  2
 #define UART_BAUD   115200
 #define SPEED_MAX   120.0f
+#define PWM_CHANNEL 0
+#define PWM_RESOLUTION 12
+#define PWM_DEFAULT_FREQ 1000
+#define PWM_MAX_VALUE ((1 << PWM_RESOLUTION) - 1)
 
 /* ---- Globals ---- */
 Preferences prefs;
@@ -59,8 +63,8 @@ void loadConfig(){
   cfg.magnetCount = prefs.getUChar("magnet", 1);
   cfg.scale       = prefs.getFloat("scale", 1.0f);
   cfg.offset      = prefs.getFloat("offset", -10.0f);
-  cfg.pwmFreq     = prefs.getUInt("pwmf", 50);
-  cfg.pwmDuty     = prefs.getUInt("pwmd", 128);
+  cfg.pwmFreq     = prefs.getUInt("pwmf", PWM_DEFAULT_FREQ);
+  cfg.pwmDuty     = prefs.getUInt("pwmd", PWM_MAX_VALUE/2);
   prefs.getString("ssid", cfg.wifiSsid, sizeof(cfg.wifiSsid));
   prefs.getString("pass", cfg.wifiPass, sizeof(cfg.wifiPass));
 }
@@ -79,7 +83,14 @@ void saveConfig(){
 /* ---- Real-time calculation task ---- */
 float realSpeed = 0.0f;
 float fakeSpeed = 0.0f;
-
+void generatePWMSignal(float speed){
+  uint32_t duty=0;
+  if(speed>0){
+    duty=(uint32_t)((speed/SPEED_MAX)*PWM_MAX_VALUE);
+    if(duty>cfg.pwmDuty) duty=cfg.pwmDuty;
+  }
+  ledcWrite(PWM_CHANNEL, duty);
+}
 void calcTask(void *param){
   const TickType_t delay100 = pdMS_TO_TICKS(100);
   for(;;){
@@ -97,10 +108,7 @@ void calcTask(void *param){
       if(fakeSpeed < 0) fakeSpeed = 0;
     }
     if(fakeSpeed > SPEED_MAX) fakeSpeed = SPEED_MAX;
-    float freq = (fakeSpeed/3.6f)/(cfg.wheelCirc)*cfg.magnetCount;
-    if(freq < 1) freq = 0;
-    ledcWriteTone(0, freq);
-    ledcWrite(0, cfg.pwmDuty);
+    generatePWMSignal(fakeSpeed);
     historyReal[histIdx] = realSpeed;
     historyFake[histIdx] = fakeSpeed;
     histIdx = (histIdx + 1) % HISTORY_LEN;
@@ -189,8 +197,9 @@ void setupServer(){
     if(req->hasParam("ssid", true)) strlcpy(cfg.wifiSsid, req->getParam("ssid", true)->value().c_str(), sizeof(cfg.wifiSsid));
     if(req->hasParam("pass", true)) strlcpy(cfg.wifiPass, req->getParam("pass", true)->value().c_str(), sizeof(cfg.wifiPass));
     saveConfig();
-    ledcSetup(0, cfg.pwmFreq, 8);
-    ledcAttachPin(PWM_PIN,0);
+  ledcSetup(PWM_CHANNEL, cfg.pwmFreq, PWM_RESOLUTION);
+  ledcAttachPin(PWM_PIN, PWM_CHANNEL);
+  ledcWrite(PWM_CHANNEL, 0);
     if(strlen(cfg.wifiSsid)>0){
       WiFi.begin(cfg.wifiSsid, cfg.wifiPass);
     }
@@ -233,9 +242,9 @@ void setup(){
   prefs.begin("config", false);
   loadConfig();
 
-  ledcSetup(0, cfg.pwmFreq, 8);
-  ledcAttachPin(PWM_PIN, 0);
-  ledcWrite(0, 0);
+  ledcSetup(PWM_CHANNEL, cfg.pwmFreq, PWM_RESOLUTION);
+  ledcAttachPin(PWM_PIN, PWM_CHANNEL);
+  ledcWrite(PWM_CHANNEL, 0);
 
   WiFi.mode(WIFI_STA);
   if(strlen(cfg.wifiSsid)>0){
