@@ -1,8 +1,9 @@
 ESP Async Web Server
-Async TCP
+AsyncTCP
 Preferences
 ArduinoOTA
+SPIFFS
 FlexCAN_T4
 SD
 SPI
-
+Wire
