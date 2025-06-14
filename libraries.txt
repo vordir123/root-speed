@@ -1,0 +1,9 @@
+ESP Async Web Server
+AsyncTCP
+Preferences
+ArduinoOTA
+SPIFFS
+FlexCAN_T4
+SD
+SPI
+Wire

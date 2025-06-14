@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Speed Dashboard</title>
+<style>
+body{font-family:Arial;background:#222;color:#eee;margin:0;padding:0}
+#content{padding:20px}
+label{display:block;margin-top:10px}
+input{width:100%}
+#graph{width:100%;height:200px}
+#can{height:150px;overflow:auto;background:#111;margin-top:20px;padding:5px}
+button{margin-top:10px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div id="content">
+<h1>Speed Manipulator</h1>
+<div>Real Speed: <span id="real">0</span> km/h</div>
+<div>Fake Speed: <span id="fake">0</span> km/h</div>
+<div>WiFi RSSI: <span id="rssi">0</span> dBm | Heap: <span id="heap">0</span> | Uptime: <span id="up">0</span>s</div>
+<canvas id="graph"></canvas>
+<label>Scale<input id="scale" type="number"></label>
+<label>Offset<input id="offset" type="number"></label>
+<label>Wheel Circumference (m)<input id="wheel" type="number" step="0.01"></label>
+<label>Magnets<input id="magnet" type="number"></label>
+<label>PWM Frequency<input id="pwmf" type="number"></label>
+<label>PWM Duty<input id="pwmd" type="number"></label>
+<label>WiFi SSID<input id="ssid" type="text"></label>
+<label>WiFi Password<input id="pass" type="text"></label>
+<button onclick="save()">Save Config</button>
+<button onclick="startCal()">Start Calibration</button>
+<label>Calibration reading<input id="calVal" type="number"></label>
+<button onclick="finishCal()">Finish Calibration</button>
+<div id="can"></div>
+</div>
+<script>
+let ws;let chart;let labels=[...Array(60).keys()];let real=[],fake=[];
+function initChart(){
+  const ctx=document.getElementById('graph');
+  chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Real',data:real,borderColor:'red'},{label:'Fake',data:fake,borderColor:'lime'}]},options:{animation:false,scales:{y:{min:0}}}});
+}
+function connect(){
+  ws=new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage=e=>{let o=JSON.parse(e.data);if(o.real!==undefined){
+      document.getElementById('real').textContent=o.real.toFixed(1);
+      document.getElementById('fake').textContent=o.fake.toFixed(1);
+      document.getElementById('rssi').textContent=o.rssi;
+      document.getElementById('heap').textContent=o.heap;
+      document.getElementById('up').textContent=o.uptime;
+      real=o.histR;fake=o.histF;chart.data.datasets[0].data=real;chart.data.datasets[1].data=fake;chart.update();
+    }else if(o.can){
+      const c=document.getElementById('can');
+      c.innerText=o.can+'\n'+c.innerText;
+    }};
+}
+function save(){
+  const body=new URLSearchParams();
+  body.append('scale',scale.value);
+  body.append('offset',offset.value);
+  body.append('wheel',wheel.value);
+  body.append('magnet',magnet.value);
+  body.append('pwmf',pwmf.value);
+  body.append('pwmd',pwmd.value);
+  body.append('ssid',ssid.value);
+  body.append('pass',pass.value);
+  fetch('/config',{method:'POST',body});
+}
+function startCal(){fetch('/calibrate',{method:'POST'});}
+function finishCal(){
+  const body=new URLSearchParams();body.append('tacho',calVal.value);
+  fetch('/calibrateDone',{method:'POST',body});
+}
+function loadConf(){
+  fetch('/config').then(r=>r.json()).then(c=>{
+    scale.value=c.scale;offset.value=c.offset;wheel.value=c.wheel;
+    magnet.value=c.magnet;pwmf.value=c.pwmf;pwmd.value=c.pwmd;
+    ssid.value=c.ssid;pass.value=c.pass;
+  });
+}
+initChart();connect();loadConf();
+</script>
+</body>
+</html>
